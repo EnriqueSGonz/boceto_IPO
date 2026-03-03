@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BiblioReserva - Sistema de Gestión de Espacios</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- App Logic must be defined before Alpine initialization -->
+    <script>
+        function libraryApp() {
+            return {
+                step: 1,
+                selectedArea: null,
+                selectedDate: new Date().toISOString().split('T')[0],
+                today: new Date().toISOString().split('T')[0],
+                selectedSlot: '',
+                searchQuery: '',
+                lastSeat: '',
+                reservations: [
+                    { id: 1, area: 'Sala de Estudio General', date: '2024-05-20', slot: '10:00 - 12:00', seat: 'S-14' }
+                ],
+                areas: [
+                    { id: 'general', name: 'Sala de Estudio General', capacity: 120, iconName: 'book-open', description: 'Espacio abierto para estudio individual en silencio.' },
+                    { id: 'cubicles', name: 'Cubículos Privados', capacity: 15, iconName: 'map-pin', description: 'Espacios individuales cerrados para máxima concentración.' },
+                    { id: 'group', name: 'Salas de Grupo', capacity: 8, iconName: 'users', description: 'Salas equipadas con pantallas para trabajos colaborativos.' },
+                    { id: 'media', name: 'Sala Multimedia', capacity: 20, iconName: 'monitor', description: 'Equipada con ordenadores de alta potencia.' },
+                ],
+                timeSlots: [
+                    "08:00 - 10:00", "10:00 - 12:00", "12:00 - 14:00", 
+                    "14:00 - 16:00", "16:00 - 18:00", "18:00 - 20:00"
+                ],
+                
+                get filteredAreas() {
+                    if (!this.searchQuery) return this.areas;
+                    return this.areas.filter(a => a.name.toLowerCase().includes(this.searchQuery.toLowerCase()));
+                },
+
+                getStepName(n) {
+                    return n === 1 ? 'Área' : n === 2 ? 'Horario' : 'Confirmar';
+                },
+
+                selectArea(area) {
+                    this.selectedArea = area;
+                    this.step = 2;
+                    this.updateIcons();
+                },
+
+                confirmReservation() {
+                    const seat = `${this.selectedArea.name.charAt(0)}-${Math.floor(Math.random() * 50) + 1}`;
+                    this.lastSeat = seat;
+                    this.reservations.unshift({
+                        id: Date.now(),
+                        area: this.selectedArea.name,
+                        date: this.selectedDate,
+                        slot: this.selectedSlot,
+                        seat: seat
+                    });
+                    this.step = 4;
+                    this.updateIcons();
+                },
+
+                cancelReservation(id) {
+                    this.reservations = this.reservations.filter(r => r.id !== id);
+                },
+
+                reset() {
+                    this.step = 1;
+                    this.selectedArea = null;
+                    this.selectedSlot = '';
+                    this.updateIcons();
+                },
+
+                updateIcons() {
+                    this.$nextTick(() => {
+                        if (typeof lucide !== 'undefined') {
+                            lucide.createIcons();
+                        }
+                    });
+                },
+
+                init() {
+                    this.updateIcons();
+                    this.$watch('step', () => this.updateIcons());
+                }
+            }
+        }
+    </script>
+    
+    <!-- Alpine.js (Defer makes it wait for the script above) -->
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <style>
+        [x-cloak] { display: none !important; }
+        .animate-fade-in { animation: fadeIn 0.5s ease-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans min-h-screen" x-data="libraryApp()" x-cloak>
+
+    <!-- Header -->
+    <header class="bg-blue-700 text-white p-6 shadow-lg">
+        <div class="max-w-4xl mx-auto flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold flex items-center gap-2">
+                    <i data-lucide="book-open"></i> BiblioReserva
+                </h1>
+                <p class="text-blue-100 text-sm">Sistema de Gestión de Espacios</p>
+            </div>
+            <div class="hidden md:block">
+                <span class="bg-blue-600 px-3 py-1 rounded-full text-xs font-medium border border-blue-500">
+                    Usuario: Estudiante_2024
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto p-4 md:p-8">
+        
+        <!-- Step Indicator -->
+        <template x-if="step < 4">
+            <div class="flex justify-between mb-8 overflow-x-auto pb-2">
+                <template x-for="n in [1, 2, 3]">
+                    <div class="flex items-center" :class="step >= n ? 'text-blue-700' : 'text-slate-400'">
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold border-2 transition-colors duration-300"
+                             :class="step >= n ? 'bg-blue-100 border-blue-700' : 'bg-white border-slate-200'">
+                            <span x-text="n"></span>
+                        </div>
+                        <span class="ml-2 font-medium whitespace-nowrap" x-text="getStepName(n)"></span>
+                        <template x-if="n < 3">
+                            <div class="w-12 h-0.5 mx-4 transition-colors duration-500" :class="step > n ? 'bg-blue-700' : 'bg-slate-200'"></div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </template>
+
+        <!-- Step 1: Select Area -->
+        <div x-show="step === 1" class="animate-fade-in">
+            <div class="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+                <h2 class="text-xl font-bold">Selecciona un área de estudio</h2>
+                <div class="relative">
+                    <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4"></i>
+                    <input 
+                        type="text" 
+                        x-model="searchQuery"
+                        placeholder="Buscar sala..." 
+                        class="pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none w-full md:w-64"
+                    >
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <template x-for="area in filteredAreas" :key="area.id">
+                    <button
+                        @click="selectArea(area)"
+                        class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all text-left flex items-start gap-4 group"
+                    >
+                        <div class="bg-blue-50 p-3 rounded-lg text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                            <i :data-lucide="area.iconName"></i>
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="font-bold text-lg" x-text="area.name"></h3>
+                            <p class="text-slate-500 text-sm mt-1" x-text="area.description"></p>
+                            <div class="mt-3 flex items-center gap-4 text-xs font-semibold text-slate-400">
+                                <span class="flex items-center gap-1"><i data-lucide="users" class="w-3 h-3"></i> Cap: <span x-text="area.capacity"></span></span>
+                                <span class="text-green-600 bg-green-50 px-2 py-0.5 rounded">Disponible</span>
+                            </div>
+                        </div>
+                        <i data-lucide="chevron-right" class="text-slate-300 self-center"></i>
+                    </button>
+                </template>
+            </div>
+        </div>
+
+        <!-- Step 2: Date and Time -->
+        <div x-show="step === 2" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 animate-fade-in">
+            <button @click="step = 1" class="flex items-center text-blue-600 text-sm font-medium mb-6 hover:underline">
+                <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i> Volver a áreas
+            </button>
+            <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
+                <div class="bg-blue-600 text-white p-2 rounded-lg">
+                    <i :data-lucide="selectedArea?.iconName"></i>
+                </div>
+                Configurar horario para <span x-text="selectedArea?.name"></span>
+            </h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                        <i data-lucide="calendar" class="w-4 h-4"></i> Seleccionar Fecha
+                    </label>
+                    <input 
+                        type="date" 
+                        x-model="selectedDate"
+                        :min="today"
+                        class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                    <div class="mt-4 p-4 bg-amber-50 rounded-lg border border-amber-100 flex gap-3 text-amber-800 text-sm">
+                        <i data-lucide="info" class="w-5 h-5 flex-shrink-0"></i>
+                        <p>Las reservas se pueden realizar con un máximo de 7 días de antelación.</p>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                        <i data-lucide="clock" class="w-4 h-4"></i> Turnos Disponibles
+                    </label>
+                    <div class="grid grid-cols-1 gap-2">
+                        <template x-for="slot in timeSlots">
+                            <button
+                                @click="selectedSlot = slot"
+                                :class="selectedSlot === slot ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 hover:border-blue-300 text-slate-700'"
+                                class="p-3 text-left rounded-lg border transition-all"
+                                x-text="slot"
+                            ></button>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-8 flex justify-end">
+                <button
+                    :disabled="!selectedSlot"
+                    @click="step = 3"
+                    :class="selectedSlot ? 'bg-blue-700 text-white hover:bg-blue-800' : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
+                    class="px-8 py-3 rounded-lg font-bold transition-all"
+                >
+                    Continuar a Confirmación
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 3: Review -->
+        <div x-show="step === 3" class="max-w-md mx-auto bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-fade-in">
+            <div class="bg-blue-700 p-6 text-white text-center">
+                <h2 class="text-xl font-bold uppercase tracking-wider">Resumen de Reserva</h2>
+            </div>
+            <div class="p-8">
+                <div class="space-y-6">
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-4">
+                        <span class="text-slate-500 font-medium">Área</span>
+                        <span class="font-bold text-slate-800" x-text="selectedArea?.name"></span>
+                    </div>
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-4">
+                        <span class="text-slate-500 font-medium">Fecha</span>
+                        <span class="font-bold text-slate-800" x-text="selectedDate"></span>
+                    </div>
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-4">
+                        <span class="text-slate-500 font-medium">Horario</span>
+                        <span class="font-bold text-slate-800" x-text="selectedSlot"></span>
+                    </div>
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-4">
+                        <span class="text-slate-500 font-medium">Puesto</span>
+                        <span class="text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded">Asignación automática</span>
+                    </div>
+                </div>
+
+                <div class="mt-8 space-y-3">
+                    <button
+                        @click="confirmReservation()"
+                        class="w-full bg-green-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-green-700 transition-colors shadow-lg shadow-green-100"
+                    >
+                        Confirmar Reserva
+                    </button>
+                    <button
+                        @click="step = 2"
+                        class="w-full bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-colors"
+                    >
+                        Modificar datos
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 4: Success -->
+        <div x-show="step === 4" class="text-center py-12 animate-fade-in">
+            <div class="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 text-green-600">
+                <i data-lucide="check-circle-2" class="w-12 h-12"></i>
+            </div>
+            <h2 class="text-3xl font-bold text-slate-800 mb-2">¡Reserva Confirmada!</h2>
+            <p class="text-slate-500 mb-8 max-w-sm mx-auto">
+                Tu sitio ha sido reservado con éxito. Se ha enviado un código QR a tu correo institucional.
+            </p>
+            
+            <div class="bg-white p-6 rounded-xl border-2 border-dashed border-slate-200 inline-block mb-8">
+                <p class="text-sm text-slate-400 mb-1">Tu puesto asignado es:</p>
+                <p class="text-4xl font-black text-blue-700 uppercase tracking-tighter" x-text="lastSeat"></p>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-4 justify-center">
+                <button @click="reset()" class="px-8 py-3 bg-blue-700 text-white rounded-lg font-bold hover:bg-blue-800">
+                    Hacer otra reserva
+                </button>
+            </div>
+        </div>
+
+        <!-- My Reservations Section -->
+        <div x-show="step === 1 && reservations.length > 0" class="mt-12 border-t border-slate-200 pt-8 animate-fade-in">
+            <h2 class="text-xl font-bold mb-4">Mis Próximas Reservas</h2>
+            <div class="space-y-3">
+                <template x-for="res in reservations" :key="res.id">
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 flex justify-between items-center shadow-sm">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-slate-800" x-text="res.area"></span>
+                                <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold" x-text="res.seat"></span>
+                            </div>
+                            <div class="text-sm text-slate-500 mt-1 flex gap-3">
+                                <span class="flex items-center gap-1"><i data-lucide="calendar" class="w-3 h-3"></i> <span x-text="res.date"></span></span>
+                                <span class="flex items-center gap-1"><i data-lucide="clock" class="w-3 h-3"></i> <span x-text="res.slot"></span></span>
+                            </div>
+                        </div>
+                        <button @click="cancelReservation(res.id)" class="text-red-500 text-sm font-bold hover:bg-red-50 px-3 py-1 rounded">Cancelar</button>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </main>
+
+    <footer class="max-w-4xl mx-auto p-8 mt-12 text-center text-slate-400 text-sm border-t border-slate-100">
+        <p>&copy; 2024 BiblioReserva - Gestión Universitaria</p>
+    </footer>
+</body>
+</html>
