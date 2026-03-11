@@ -3,329 +3,748 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BiblioReserva - Sistema de Gestión de Espacios</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <title>Reserva de Puestos de Estudio - USAL</title>
     
-    <!-- App Logic must be defined before Alpine initialization -->
+    <!-- Tipografía Lato -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    
+    <!-- Iconos FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Tailwind CSS con Configuración de Colores USAL -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        function libraryApp() {
-            return {
-                step: 1,
-                selectedArea: null,
-                selectedDate: new Date().toISOString().split('T')[0],
-                today: new Date().toISOString().split('T')[0],
-                selectedSlot: '',
-                searchQuery: '',
-                lastSeat: '',
-                reservations: [
-                    { id: 1, area: 'Sala de Estudio General', date: '2024-05-20', slot: '10:00 - 12:00', seat: 'S-14' }
-                ],
-                areas: [
-                    { id: 'general', name: 'Sala de Estudio General', capacity: 120, iconName: 'book-open', description: 'Espacio abierto para estudio individual en silencio.' },
-                    { id: 'cubicles', name: 'Cubículos Privados', capacity: 15, iconName: 'map-pin', description: 'Espacios individuales cerrados para máxima concentración.' },
-                    { id: 'group', name: 'Salas de Grupo', capacity: 8, iconName: 'users', description: 'Salas equipadas con pantallas para trabajos colaborativos.' },
-                    { id: 'media', name: 'Sala Multimedia', capacity: 20, iconName: 'monitor', description: 'Equipada con ordenadores de alta potencia.' },
-                ],
-                timeSlots: [
-                    "08:00 - 10:00", "10:00 - 12:00", "12:00 - 14:00", 
-                    "14:00 - 16:00", "16:00 - 18:00", "18:00 - 20:00"
-                ],
-                
-                get filteredAreas() {
-                    if (!this.searchQuery) return this.areas;
-                    return this.areas.filter(a => a.name.toLowerCase().includes(this.searchQuery.toLowerCase()));
-                },
-
-                getStepName(n) {
-                    return n === 1 ? 'Área' : n === 2 ? 'Horario' : 'Confirmar';
-                },
-
-                selectArea(area) {
-                    this.selectedArea = area;
-                    this.step = 2;
-                    this.updateIcons();
-                },
-
-                confirmReservation() {
-                    const seat = `${this.selectedArea.name.charAt(0)}-${Math.floor(Math.random() * 50) + 1}`;
-                    this.lastSeat = seat;
-                    this.reservations.unshift({
-                        id: Date.now(),
-                        area: this.selectedArea.name,
-                        date: this.selectedDate,
-                        slot: this.selectedSlot,
-                        seat: seat
-                    });
-                    this.step = 4;
-                    this.updateIcons();
-                },
-
-                cancelReservation(id) {
-                    this.reservations = this.reservations.filter(r => r.id !== id);
-                },
-
-                reset() {
-                    this.step = 1;
-                    this.selectedArea = null;
-                    this.selectedSlot = '';
-                    this.updateIcons();
-                },
-
-                updateIcons() {
-                    this.$nextTick(() => {
-                        if (typeof lucide !== 'undefined') {
-                            lucide.createIcons();
-                        }
-                    });
-                },
-
-                init() {
-                    this.updateIcons();
-                    this.$watch('step', () => this.updateIcons());
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Lato', 'sans-serif'],
+                    },
+                    colors: {
+                        'usal-red': '#d22020',
+                        'usal-gray': '#4d4d4d',
+                        'usal-blue': '#385e9d',
+                    }
                 }
             }
         }
     </script>
-    
-    <!-- Alpine.js (Defer makes it wait for the script above) -->
-    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
     <style>
-        [x-cloak] { display: none !important; }
-        .animate-fade-in { animation: fadeIn 0.5s ease-out; }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        /* Estilos personalizados del mapa */
+        .seat { transition: all 0.2s ease-in-out; }
+        .seat:hover:not(.occupied) { transform: scale(1.05); cursor: pointer; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border-color: #385e9d; }
+        .seat.occupied { cursor: not-allowed; opacity: 0.8; }
+        .seat.selected { border: 2px solid #385e9d; background-color: rgba(56, 94, 157, 0.1); transform: scale(1.05); }
+        
+        .table-4 { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 4px; }
+        .table-seat { width: 8px; height: 8px; border-radius: 50%; background-color: rgba(77, 77, 77, 0.3); margin: auto; }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f9fafb; border-left: 1px solid #e5e7eb; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; }
+        ::-webkit-scrollbar-thumb:hover { background: #4d4d4d; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900 font-sans min-h-screen" x-data="libraryApp()" x-cloak>
+<body class="bg-gray-50 text-usal-gray font-sans h-screen overflow-hidden flex flex-col">
 
-    <!-- Header -->
-    <header class="bg-blue-700 text-white p-6 shadow-lg">
-        <div class="max-w-4xl mx-auto flex justify-between items-center">
-            <div>
-                <h1 class="text-2xl font-bold flex items-center gap-2">
-                    <i data-lucide="book-open"></i> BiblioReserva
-                </h1>
-                <p class="text-blue-100 text-sm">Sistema de Gestión de Espacios</p>
+    <!-- Cabecera Institucional USAL -->
+    <header class="bg-white border-b-4 border-usal-red flex items-center justify-between px-8 py-3 shrink-0 shadow-sm z-20 relative">
+        <div class="flex items-center gap-4">
+            <!-- Simulación Logo USAL -->
+            <div class="flex flex-col justify-center border-r border-gray-300 pr-4">
+                <span class="font-bold text-usal-red tracking-widest text-lg leading-none">VNIVERSITAS</span>
+                <span class="text-usal-gray text-xs tracking-widest leading-none mt-1">STUDII SALAMANTINI</span>
             </div>
-            <div class="hidden md:block">
-                <span class="bg-blue-600 px-3 py-1 rounded-full text-xs font-medium border border-blue-500">
-                    Usuario: Estudiante_2024
-                </span>
+            <h1 class="text-xl font-bold text-usal-blue ml-2">Red de Bibliotecas</h1>
+        </div>
+        <div class="flex items-center gap-4 text-sm text-usal-gray">
+            <span id="headerUserName" class="font-bold">Estudiante</span>
+            <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-usal-gray">
+                <i class="fas fa-user"></i>
             </div>
         </div>
     </header>
 
-    <main class="max-w-4xl mx-auto p-4 md:p-8">
+    <!-- Contenedor de Notificaciones (Toasts) -->
+    <div id="toastContainer" class="fixed top-20 right-4 z-50 flex flex-col gap-2"></div>
+
+    <!-- Cuerpo de la aplicación (Sidebar + Main) -->
+    <div class="flex flex-1 overflow-hidden">
         
-        <!-- Step Indicator -->
-        <template x-if="step < 4">
-            <div class="flex justify-between mb-8 overflow-x-auto pb-2">
-                <template x-for="n in [1, 2, 3]">
-                    <div class="flex items-center" :class="step >= n ? 'text-blue-700' : 'text-slate-400'">
-                        <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold border-2 transition-colors duration-300"
-                             :class="step >= n ? 'bg-blue-100 border-blue-700' : 'bg-white border-slate-200'">
-                            <span x-text="n"></span>
-                        </div>
-                        <span class="ml-2 font-medium whitespace-nowrap" x-text="getStepName(n)"></span>
-                        <template x-if="n < 3">
-                            <div class="w-12 h-0.5 mx-4 transition-colors duration-500" :class="step > n ? 'bg-blue-700' : 'bg-slate-200'"></div>
-                        </template>
-                    </div>
-                </template>
-            </div>
-        </template>
+        <!-- Barra Lateral Izquierda -->
+        <aside class="w-72 bg-white shadow-md border-r border-gray-200 flex flex-col h-full z-10 shrink-0">
+            
+            <!-- Navegación Principal -->
+            <nav class="p-4 border-b border-gray-100 space-y-1">
+                <button onclick="switchTab('reserve')" id="tab-reserve" class="w-full flex items-center gap-3 px-4 py-3 rounded text-left transition bg-usal-blue text-white font-medium shadow-sm">
+                    <i class="fas fa-map-marked-alt w-5 text-center"></i> Reservar Sitio
+                </button>
+                <button onclick="switchTab('reservations')" id="tab-reservations" class="w-full flex items-center gap-3 px-4 py-3 rounded text-left text-usal-gray hover:bg-gray-100 transition font-medium">
+                    <i class="fas fa-list-ul w-5 text-center"></i> Mis Reservas
+                </button>
+                <button onclick="switchTab('profile')" id="tab-profile" class="w-full flex items-center gap-3 px-4 py-3 rounded text-left text-usal-gray hover:bg-gray-100 transition font-medium">
+                    <i class="fas fa-user-cog w-5 text-center"></i> Perfil Académico
+                </button>
+            </nav>
 
-        <!-- Step 1: Select Area -->
-        <div x-show="step === 1" class="animate-fade-in">
-            <div class="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-                <h2 class="text-xl font-bold">Selecciona un área de estudio</h2>
-                <div class="relative">
-                    <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4"></i>
-                    <input 
-                        type="text" 
-                        x-model="searchQuery"
-                        placeholder="Buscar sala..." 
-                        class="pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none w-full md:w-64"
-                    >
+            <!-- Selector de Bibliotecas (Solo visible en la pestaña Reservar) -->
+            <div id="libraryNav" class="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
+                <p class="text-xs text-usal-gray font-bold uppercase tracking-widest mb-2 px-2 border-b border-gray-200 pb-2">Instalaciones</p>
+                
+                <button onclick="selectLibrary(0)" id="btn-lib-0" class="lib-btn w-full flex items-center gap-3 px-4 py-3 rounded text-left transition border-l-4 border-usal-red bg-gray-50 text-usal-blue font-bold shadow-sm">
+                    <i class="fas fa-building w-4 text-center"></i> Biblioteca Francisco de Vitoria
+                </button>
+                <button onclick="selectLibrary(1)" id="btn-lib-1" class="lib-btn w-full flex items-center gap-3 px-4 py-3 rounded text-left transition border-l-4 border-transparent text-usal-gray hover:bg-gray-100 font-medium">
+                    <i class="fas fa-flask w-4 text-center"></i> Biblioteca de Ciencias
+                </button>
+                <button onclick="selectLibrary(2)" id="btn-lib-2" class="lib-btn w-full flex items-center gap-3 px-4 py-3 rounded text-left transition border-l-4 border-transparent text-usal-gray hover:bg-gray-100 font-medium">
+                    <i class="fas fa-landmark w-4 text-center"></i> Biblioteca de Humanidades
+                </button>
+
+                <!-- Recomendación Bibliográfica IA -->
+                <div class="mt-auto pt-6">
+                    <div class="bg-gray-50 rounded border border-gray-200 p-4 shadow-sm relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-full h-1 bg-usal-blue"></div>
+                        <p class="text-[10px] text-usal-blue font-bold uppercase tracking-wider mb-3 flex items-center justify-between">
+                            <span><i class="fas fa-lightbulb"></i> Recomendación de Estudio</span>
+                        </p>
+                        <div id="recommendationContent" class="text-sm text-usal-gray min-h-[60px]">
+                            <!-- Se carga por JS -->
+                        </div>
+                        <button id="aiPlanBtn" onclick="generateStudyPlan()" class="hidden w-full mt-4 bg-usal-blue hover:bg-opacity-90 text-white text-xs font-bold py-2 px-3 rounded transition duration-200 shadow flex items-center justify-center gap-2">
+                            <i class="fas fa-calendar-check"></i> Generar Plan de Estudio
+                        </button>
+                    </div>
                 </div>
             </div>
+        </aside>
+
+        <!-- Contenido Principal -->
+        <main class="flex-1 flex flex-col h-full relative bg-gray-100">
             
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <template x-for="area in filteredAreas" :key="area.id">
-                    <button
-                        @click="selectArea(area)"
-                        class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all text-left flex items-start gap-4 group"
-                    >
-                        <div class="bg-blue-50 p-3 rounded-lg text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                            <i :data-lucide="area.iconName"></i>
-                        </div>
-                        <div class="flex-1">
-                            <h3 class="font-bold text-lg" x-text="area.name"></h3>
-                            <p class="text-slate-500 text-sm mt-1" x-text="area.description"></p>
-                            <div class="mt-3 flex items-center gap-4 text-xs font-semibold text-slate-400">
-                                <span class="flex items-center gap-1"><i data-lucide="users" class="w-3 h-3"></i> Cap: <span x-text="area.capacity"></span></span>
-                                <span class="text-green-600 bg-green-50 px-2 py-0.5 rounded">Disponible</span>
+            <!-- ================= VISTA: RESERVAR ================= -->
+            <div id="view-reserve" class="flex-1 flex flex-col h-full">
+                <!-- Subcabecera de instalación -->
+                <header class="bg-white border-b border-gray-200 h-14 flex items-center justify-between px-8 z-0">
+                    <h2 id="currentLibraryTitle" class="text-lg font-bold text-usal-gray">Biblioteca Francisco de Vitoria</h2>
+                    
+                    <div class="flex bg-gray-100 p-1 rounded">
+                        <button onclick="selectFloor(1)" id="btn-floor-1" class="floor-btn px-6 py-1 rounded text-sm font-bold bg-white shadow-sm text-usal-blue transition">Planta 1</button>
+                        <button onclick="selectFloor(2)" id="btn-floor-2" class="floor-btn px-6 py-1 rounded text-sm font-medium text-usal-gray hover:text-usal-blue transition">Planta 2</button>
+                    </div>
+                </header>
+
+                <!-- Área del Mapa -->
+                <div class="flex-1 overflow-auto p-8 flex justify-center items-start">
+                    <div class="bg-white p-8 rounded shadow-sm border border-gray-200 max-w-5xl w-full">
+                        <div class="flex justify-between items-end mb-6 pb-4 border-b border-gray-200">
+                            <div>
+                                <h3 class="text-xl font-bold text-usal-gray mb-1" id="floorTitle">Planta 1</h3>
+                                <p class="text-sm text-gray-500">Haga clic en un puesto disponible para iniciar la reserva.</p>
+                            </div>
+                            <div class="flex gap-4 text-xs font-bold uppercase tracking-wide">
+                                <div class="flex items-center gap-1.5"><div class="w-4 h-4 rounded bg-white border-2 border-green-500"></div> Libre</div>
+                                <div class="flex items-center gap-1.5"><div class="w-4 h-4 rounded bg-usal-red opacity-80 border-2 border-usal-red"></div> Ocupado</div>
+                                <div class="flex items-center gap-1.5"><div class="w-4 h-4 rounded bg-blue-50 border-2 border-usal-blue"></div> Seleccionado</div>
                             </div>
                         </div>
-                        <i data-lucide="chevron-right" class="text-slate-300 self-center"></i>
-                    </button>
-                </template>
-            </div>
-        </div>
 
-        <!-- Step 2: Date and Time -->
-        <div x-show="step === 2" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 animate-fade-in">
-            <button @click="step = 1" class="flex items-center text-blue-600 text-sm font-medium mb-6 hover:underline">
-                <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i> Volver a áreas
-            </button>
-            <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
-                <div class="bg-blue-600 text-white p-2 rounded-lg">
-                    <i :data-lucide="selectedArea?.iconName"></i>
-                </div>
-                Configurar horario para <span x-text="selectedArea?.name"></span>
-            </h2>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div>
-                    <label class="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
-                        <i data-lucide="calendar" class="w-4 h-4"></i> Seleccionar Fecha
-                    </label>
-                    <input 
-                        type="date" 
-                        x-model="selectedDate"
-                        :min="today"
-                        class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    >
-                    <div class="mt-4 p-4 bg-amber-50 rounded-lg border border-amber-100 flex gap-3 text-amber-800 text-sm">
-                        <i data-lucide="info" class="w-5 h-5 flex-shrink-0"></i>
-                        <p>Las reservas se pueden realizar con un máximo de 7 días de antelación.</p>
+                        <div id="mapContainer" class="relative w-full">
+                            <!-- Mapa renderizado por JS -->
+                        </div>
                     </div>
                 </div>
 
-                <div>
-                    <label class="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
-                        <i data-lucide="clock" class="w-4 h-4"></i> Turnos Disponibles
-                    </label>
-                    <div class="grid grid-cols-1 gap-2">
-                        <template x-for="slot in timeSlots">
-                            <button
-                                @click="selectedSlot = slot"
-                                :class="selectedSlot === slot ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 hover:border-blue-300 text-slate-700'"
-                                class="p-3 text-left rounded-lg border transition-all"
-                                x-text="slot"
-                            ></button>
-                        </template>
+                <!-- Panel Inferior de Reserva -->
+                <div class="bg-white border-t-2 border-gray-200 p-4 px-8 flex items-center h-24 shrink-0 shadow-[0_-5px_15px_-3px_rgba(0,0,0,0.05)]">
+                    <div class="flex-1" id="selectionInfo">
+                        <p class="text-gray-500 italic">No hay ningún puesto seleccionado.</p>
                     </div>
-                </div>
-            </div>
-
-            <div class="mt-8 flex justify-end">
-                <button
-                    :disabled="!selectedSlot"
-                    @click="step = 3"
-                    :class="selectedSlot ? 'bg-blue-700 text-white hover:bg-blue-800' : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
-                    class="px-8 py-3 rounded-lg font-bold transition-all"
-                >
-                    Continuar a Confirmación
-                </button>
-            </div>
-        </div>
-
-        <!-- Step 3: Review -->
-        <div x-show="step === 3" class="max-w-md mx-auto bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-fade-in">
-            <div class="bg-blue-700 p-6 text-white text-center">
-                <h2 class="text-xl font-bold uppercase tracking-wider">Resumen de Reserva</h2>
-            </div>
-            <div class="p-8">
-                <div class="space-y-6">
-                    <div class="flex justify-between items-center border-b border-slate-100 pb-4">
-                        <span class="text-slate-500 font-medium">Área</span>
-                        <span class="font-bold text-slate-800" x-text="selectedArea?.name"></span>
-                    </div>
-                    <div class="flex justify-between items-center border-b border-slate-100 pb-4">
-                        <span class="text-slate-500 font-medium">Fecha</span>
-                        <span class="font-bold text-slate-800" x-text="selectedDate"></span>
-                    </div>
-                    <div class="flex justify-between items-center border-b border-slate-100 pb-4">
-                        <span class="text-slate-500 font-medium">Horario</span>
-                        <span class="font-bold text-slate-800" x-text="selectedSlot"></span>
-                    </div>
-                    <div class="flex justify-between items-center border-b border-slate-100 pb-4">
-                        <span class="text-slate-500 font-medium">Puesto</span>
-                        <span class="text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded">Asignación automática</span>
-                    </div>
-                </div>
-
-                <div class="mt-8 space-y-3">
-                    <button
-                        @click="confirmReservation()"
-                        class="w-full bg-green-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-green-700 transition-colors shadow-lg shadow-green-100"
-                    >
-                        Confirmar Reserva
-                    </button>
-                    <button
-                        @click="step = 2"
-                        class="w-full bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-colors"
-                    >
-                        Modificar datos
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Step 4: Success -->
-        <div x-show="step === 4" class="text-center py-12 animate-fade-in">
-            <div class="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 text-green-600">
-                <i data-lucide="check-circle-2" class="w-12 h-12"></i>
-            </div>
-            <h2 class="text-3xl font-bold text-slate-800 mb-2">¡Reserva Confirmada!</h2>
-            <p class="text-slate-500 mb-8 max-w-sm mx-auto">
-                Tu sitio ha sido reservado con éxito. Se ha enviado un código QR a tu correo institucional.
-            </p>
-            
-            <div class="bg-white p-6 rounded-xl border-2 border-dashed border-slate-200 inline-block mb-8">
-                <p class="text-sm text-slate-400 mb-1">Tu puesto asignado es:</p>
-                <p class="text-4xl font-black text-blue-700 uppercase tracking-tighter" x-text="lastSeat"></p>
-            </div>
-
-            <div class="flex flex-col md:flex-row gap-4 justify-center">
-                <button @click="reset()" class="px-8 py-3 bg-blue-700 text-white rounded-lg font-bold hover:bg-blue-800">
-                    Hacer otra reserva
-                </button>
-            </div>
-        </div>
-
-        <!-- My Reservations Section -->
-        <div x-show="step === 1 && reservations.length > 0" class="mt-12 border-t border-slate-200 pt-8 animate-fade-in">
-            <h2 class="text-xl font-bold mb-4">Mis Próximas Reservas</h2>
-            <div class="space-y-3">
-                <template x-for="res in reservations" :key="res.id">
-                    <div class="bg-white p-4 rounded-xl border border-slate-200 flex justify-between items-center shadow-sm">
+                    
+                    <div id="reservationControls" class="flex items-end gap-4 opacity-50 pointer-events-none transition-opacity duration-300">
                         <div>
-                            <div class="flex items-center gap-2">
-                                <span class="font-bold text-slate-800" x-text="res.area"></span>
-                                <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold" x-text="res.seat"></span>
-                            </div>
-                            <div class="text-sm text-slate-500 mt-1 flex gap-3">
-                                <span class="flex items-center gap-1"><i data-lucide="calendar" class="w-3 h-3"></i> <span x-text="res.date"></span></span>
-                                <span class="flex items-center gap-1"><i data-lucide="clock" class="w-3 h-3"></i> <span x-text="res.slot"></span></span>
-                            </div>
+                            <label class="block text-xs font-bold text-usal-gray uppercase tracking-wider mb-1">Fecha (Máx 7 días)</label>
+                            <input type="date" id="resDate" class="border border-gray-300 rounded px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-usal-blue text-usal-gray">
                         </div>
-                        <button @click="cancelReservation(res.id)" class="text-red-500 text-sm font-bold hover:bg-red-50 px-3 py-1 rounded">Cancelar</button>
+                        <div>
+                            <label class="block text-xs font-bold text-usal-gray uppercase tracking-wider mb-1">Desde</label>
+                            <input type="time" id="resTimeStart" class="border border-gray-300 rounded px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-usal-blue text-usal-gray">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-usal-gray uppercase tracking-wider mb-1">Hasta</label>
+                            <input type="time" id="resTimeEnd" class="border border-gray-300 rounded px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-usal-blue text-usal-gray">
+                        </div>
+                        <button id="reserveBtn" onclick="confirmReservation()" class="bg-usal-red hover:bg-red-800 text-white font-bold py-2 px-8 rounded shadow transition duration-200 h-[38px]">
+                            Confirmar Reserva
+                        </button>
                     </div>
-                </template>
+                </div>
+            </div>
+
+            <!-- ================= VISTA: MIS RESERVAS ================= -->
+            <div id="view-reservations" class="hidden flex-1 p-8 overflow-auto">
+                <div class="max-w-6xl mx-auto w-full">
+                    <div class="flex items-center justify-between mb-8 border-b border-gray-300 pb-4">
+                        <h2 class="text-2xl font-bold text-usal-gray">Mis Próximas Reservas</h2>
+                    </div>
+                    
+                    <div id="reservationsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <!-- Se rellena por JS -->
+                    </div>
+                    
+                    <div id="noReservations" class="hidden flex flex-col items-center justify-center py-20 bg-white border border-dashed border-gray-300 rounded text-center">
+                        <i class="fas fa-calendar-times text-6xl text-gray-300 mb-4"></i>
+                        <p class="text-usal-gray font-medium text-lg">No constan reservas activas en este momento.</p>
+                        <button onclick="switchTab('reserve')" class="mt-4 text-usal-blue font-bold hover:underline">Ir al mapa de reservas</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= VISTA: MI PERFIL ================= -->
+            <div id="view-profile" class="hidden flex-1 p-8 overflow-auto">
+                <div class="max-w-xl mx-auto bg-white p-8 rounded shadow-sm border border-gray-200">
+                    <div class="border-b-2 border-usal-red pb-4 mb-6">
+                        <h2 class="text-2xl font-bold text-usal-gray flex items-center gap-3">
+                            <i class="fas fa-id-card text-usal-blue"></i> Ficha Académica
+                        </h2>
+                    </div>
+                    <form id="profileForm" class="space-y-5">
+                        <div>
+                            <label class="block text-sm font-bold text-usal-gray mb-1">Nombre Completo</label>
+                            <input type="text" id="userName" class="w-full px-4 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-usal-blue outline-none text-usal-gray bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-usal-gray mb-1">Facultad / Grado</label>
+                            <select id="userDegree" class="w-full px-4 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-usal-blue outline-none text-usal-gray bg-gray-50">
+                                <option value="informatica">Ingeniería Informática</option>
+                                <option value="medicina">Medicina</option>
+                                <option value="derecho">Derecho</option>
+                                <option value="arquitectura">Arquitectura</option>
+                                <option value="letras">Filosofía y Letras</option>
+                                <option value="biologia">Biología</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-usal-gray mb-1">Asignatura o Tema de Estudio Actual</label>
+                            <input type="text" id="userTopic" class="w-full px-4 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-usal-blue outline-none text-usal-gray bg-gray-50" placeholder="Ej. Derecho Constitucional, Anatomía...">
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded border border-gray-200 relative overflow-hidden">
+                            <div class="absolute left-0 top-0 w-1 h-full bg-usal-blue"></div>
+                            <label class="block text-sm font-bold text-usal-blue mb-1"><i class="fas fa-graduation-cap"></i> Fecha de Próximo Examen</label>
+                            <input type="date" id="examDate" class="w-full px-4 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-usal-blue outline-none text-usal-gray mt-1">
+                            <p class="text-xs text-usal-gray mt-2 italic">Permite al sistema generar recomendaciones de estudio y planificaciones automáticas.</p>
+                        </div>
+                        <button type="submit" class="w-full bg-usal-blue hover:bg-opacity-90 text-white font-bold py-3 px-4 rounded transition duration-200 shadow mt-4">
+                            Actualizar Datos
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Modal del Plan de Estudio IA -->
+    <div id="aiPlanModal" class="fixed inset-0 bg-usal-gray bg-opacity-80 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded shadow-2xl p-8 max-w-2xl w-full mx-4 max-h-[85vh] flex flex-col border-t-4 border-usal-blue">
+            <div class="flex justify-between items-center mb-6 border-b border-gray-200 pb-4">
+                <h2 class="text-2xl font-bold text-usal-gray flex items-center gap-3">
+                    <i class="fas fa-calendar-alt text-usal-blue"></i> Plan de Estudio Propuesto
+                </h2>
+                <button onclick="document.getElementById('aiPlanModal').classList.add('hidden')" class="text-gray-400 hover:text-usal-red transition">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+            <div id="aiPlanContent" class="overflow-y-auto flex-1 text-usal-gray prose prose-sm max-w-none space-y-3 px-2">
+                <!-- El plan se renderiza aquí -->
+            </div>
+            <div class="mt-6 pt-4 border-t border-gray-100 flex justify-end">
+                <button onclick="document.getElementById('aiPlanModal').classList.add('hidden')" class="bg-gray-200 hover:bg-gray-300 text-usal-gray font-bold py-2 px-6 rounded transition">
+                    Cerrar
+                </button>
             </div>
         </div>
-    </main>
+    </div>
 
-    <footer class="max-w-4xl mx-auto p-8 mt-12 text-center text-slate-400 text-sm border-t border-slate-100">
-        <p>&copy; 2024 BiblioReserva - Gestión Universitaria</p>
-    </footer>
+    <script>
+        // --- CONFIGURACIÓN Y ESTADO ---
+        const apiKey = ""; // API Key de Gemini autoinyectada
+
+        // Usuario por defecto
+        let currentUser = {
+            name: "Estudiante USAL",
+            degree: "derecho",
+            topic: "Derecho Civil",
+            examDate: ""
+        };
+
+        let currentLibraryIdx = 0;
+        let currentFloor = 1;
+        let selectedSeatId = null;
+        let myReservations = []; 
+
+        const libraryNames = ["Biblioteca Francisco de Vitoria", "Biblioteca de Ciencias", "Biblioteca de Humanidades"];
+        const typeNames = { 'grupal': 'Espacio de Trabajo en Grupo', 'mesa': 'Mesa de Lectura', 'individual': 'Puesto Individual' };
+
+        const librariesData = Array.from({ length: 3 }, () => ({
+            floor1: {
+                group: generateSeats(4, 'grupal', 6),
+                tables: generateSeats(20, 'mesa', 4),
+                individuals: generateSeats(20, 'individual', 1)
+            },
+            floor2: {
+                tables: generateSeats(24, 'mesa', 4),
+                individuals: generateSeats(16, 'individual', 1)
+            }
+        }));
+
+        function generateSeats(count, type, capacity) {
+            return Array.from({ length: count }, (_, i) => ({
+                id: `${type}-${i}`,
+                type: type,
+                capacity: capacity,
+                occupied: Math.random() < 0.35 // 35% ocupado
+            }));
+        }
+
+        // --- INICIALIZACIÓN ---
+        window.onload = () => {
+            setupDateInputs();
+            fillProfileForm();
+            renderMap();
+            fetchAIRecommendation();
+        };
+
+        function setupDateInputs() {
+            const today = new Date();
+            const maxDate = new Date();
+            maxDate.setDate(today.getDate() + 7);
+
+            const todayStr = today.toISOString().split('T')[0];
+            const maxStr = maxDate.toISOString().split('T')[0];
+
+            const resDateInput = document.getElementById('resDate');
+            resDateInput.min = todayStr;
+            resDateInput.max = maxStr;
+            resDateInput.value = todayStr;
+
+            const hour = today.getHours();
+            document.getElementById('resTimeStart').value = `${String(hour + 1).padStart(2, '0')}:00`;
+            document.getElementById('resTimeEnd').value = `${String(hour + 3).padStart(2, '0')}:00`;
+        }
+
+        // --- NAVEGACIÓN ---
+        function switchTab(tab) {
+            document.getElementById('view-reserve').classList.add('hidden');
+            document.getElementById('view-reservations').classList.add('hidden');
+            document.getElementById('view-profile').classList.add('hidden');
+            
+            const tabs = ['reserve', 'reservations', 'profile'];
+            tabs.forEach(t => {
+                const btn = document.getElementById(`tab-${t}`);
+                btn.className = 'w-full flex items-center gap-3 px-4 py-3 rounded text-left text-usal-gray hover:bg-gray-100 transition font-medium';
+            });
+
+            document.getElementById(`view-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-${tab}`).className = 'w-full flex items-center gap-3 px-4 py-3 rounded text-left transition bg-usal-blue text-white font-medium shadow-sm';
+
+            document.getElementById('libraryNav').style.display = tab === 'reserve' ? 'flex' : 'none';
+
+            if (tab === 'reservations') renderReservationsList();
+        }
+
+        // --- LÓGICA DE RESERVAS ---
+        function handleSeatClick(type, index) {
+            const floorKey = `floor${currentFloor}`;
+            const seatGroup = type === 'grupal' ? 'group' : (type === 'mesa' ? 'tables' : 'individuals');
+            const seat = librariesData[currentLibraryIdx][floorKey][seatGroup][index];
+
+            if (seat.occupied) return;
+
+            selectedSeatId = { type, index, seatGroup };
+            renderMap();
+
+            document.getElementById('selectionInfo').innerHTML = `
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 rounded bg-blue-50 border border-usal-blue flex items-center justify-center text-usal-blue text-xl">
+                        <i class="fas ${type === 'grupal' ? 'fa-users' : (type === 'mesa' ? 'fa-chair' : 'fa-user')}"></i>
+                    </div>
+                    <div>
+                        <p class="font-bold text-usal-gray text-lg leading-tight">${typeNames[type]} ${index + 1}</p>
+                        <p class="text-sm text-gray-500">${libraryNames[currentLibraryIdx]} - Planta ${currentFloor}</p>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('reservationControls').classList.remove('opacity-50', 'pointer-events-none');
+        }
+
+        function confirmReservation() {
+            if (!selectedSeatId) return;
+
+            const date = document.getElementById('resDate').value;
+            const timeStart = document.getElementById('resTimeStart').value;
+            const timeEnd = document.getElementById('resTimeEnd').value;
+
+            if(!date || !timeStart || !timeEnd) {
+                showToast('Debe especificar la fecha y el horario completo.', 'error');
+                return;
+            }
+
+            if(timeStart >= timeEnd) {
+                showToast('La hora de finalización debe ser posterior a la de inicio.', 'error');
+                return;
+            }
+
+            const floorKey = `floor${currentFloor}`;
+            const seat = librariesData[currentLibraryIdx][floorKey][selectedSeatId.seatGroup][selectedSeatId.index];
+            
+            const newRes = {
+                id: Date.now(),
+                library: libraryNames[currentLibraryIdx],
+                floor: currentFloor,
+                seatName: `${typeNames[selectedSeatId.type]} ${selectedSeatId.index + 1}`,
+                date: date,
+                timeStart: timeStart,
+                timeEnd: timeEnd,
+                auto: false
+            };
+
+            myReservations.push(newRes);
+            seat.occupied = true;
+            
+            showToast('Reserva formalizada correctamente.');
+            clearSelection();
+            renderMap();
+        }
+
+        function clearSelection() {
+            selectedSeatId = null;
+            document.getElementById('selectionInfo').innerHTML = '<p class="text-gray-500 italic">No hay ningún puesto seleccionado en el mapa.</p>';
+            document.getElementById('reservationControls').classList.add('opacity-50', 'pointer-events-none');
+        }
+
+        function renderReservationsList() {
+            const container = document.getElementById('reservationsList');
+            const noRes = document.getElementById('noReservations');
+
+            if (myReservations.length === 0) {
+                container.innerHTML = '';
+                noRes.classList.remove('hidden');
+                return;
+            }
+
+            noRes.classList.add('hidden');
+            const sortedRes = [...myReservations].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            container.innerHTML = sortedRes.map(res => {
+                const dateParts = res.date.split('-');
+                const formattedDate = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+                const isAuto = res.auto;
+                
+                return `
+                <div class="bg-white rounded shadow-sm border ${isAuto ? 'border-usal-blue' : 'border-gray-200'} p-5 flex flex-col relative overflow-hidden">
+                    ${isAuto ? '<div class="absolute top-0 left-0 w-full h-1 bg-usal-blue"></div><span class="absolute top-3 right-3 text-[10px] uppercase tracking-wider bg-blue-50 text-usal-blue border border-usal-blue px-2 py-0.5 rounded font-bold"><i class="fas fa-magic"></i> Auto</span>' : '<div class="absolute top-0 left-0 w-full h-1 bg-usal-red"></div>'}
+                    
+                    <div class="flex items-center gap-4 mb-5 mt-2">
+                        <div class="w-12 h-12 rounded bg-gray-50 border border-gray-200 text-usal-gray flex items-center justify-center text-xl shrink-0">
+                            <i class="fas ${res.seatName.includes('Grupo') ? 'fa-users' : (res.seatName.includes('Mesa') ? 'fa-chair' : 'fa-user')}"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-usal-gray leading-tight">${res.seatName}</h4>
+                            <p class="text-xs text-gray-500 mt-1">${res.library} (Planta ${res.floor})</p>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-auto bg-gray-50 rounded border border-gray-100 p-3 text-sm text-usal-gray flex flex-col gap-2">
+                        <div class="flex justify-between items-center border-b border-gray-200 pb-1">
+                            <span class="text-gray-500 font-bold text-xs uppercase tracking-wider">Fecha</span>
+                            <span class="font-bold">${formattedDate}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-500 font-bold text-xs uppercase tracking-wider">Horario</span>
+                            <span class="font-bold">${res.timeStart} - ${res.timeEnd}</span>
+                        </div>
+                    </div>
+                    
+                    <button onclick="cancelReservation(${res.id})" class="mt-4 w-full text-center text-sm font-bold text-usal-red hover:text-white hover:bg-usal-red border border-usal-red py-2 rounded transition">
+                        Cancelar Reserva
+                    </button>
+                </div>
+            `}).join('');
+        }
+
+        function cancelReservation(id) {
+            myReservations = myReservations.filter(r => r.id !== id);
+            showToast('La reserva ha sido cancelada.', 'info');
+            renderReservationsList();
+            // Nota: En una app real, aquí liberaríamos el asiento en 'librariesData'.
+        }
+
+        // --- MAPA ---
+        function selectLibrary(index) {
+            currentLibraryIdx = index;
+            document.getElementById('currentLibraryTitle').innerText = libraryNames[index];
+            
+            document.querySelectorAll('.lib-btn').forEach((btn, i) => {
+                btn.className = i === index 
+                    ? 'lib-btn w-full flex items-center gap-3 px-4 py-3 rounded text-left transition border-l-4 border-usal-red bg-gray-50 text-usal-blue font-bold shadow-sm'
+                    : 'lib-btn w-full flex items-center gap-3 px-4 py-3 rounded text-left transition border-l-4 border-transparent text-usal-gray hover:bg-gray-100 font-medium';
+            });
+            clearSelection();
+            renderMap();
+        }
+
+        function selectFloor(floor) {
+            currentFloor = floor;
+            document.getElementById('floorTitle').innerText = `Planta ${floor}`;
+            
+            document.querySelectorAll('.floor-btn').forEach((btn, i) => {
+                btn.className = (i + 1) === floor
+                    ? 'floor-btn px-6 py-1 rounded text-sm font-bold bg-white shadow-sm text-usal-blue transition'
+                    : 'floor-btn px-6 py-1 rounded text-sm font-medium text-usal-gray hover:text-usal-blue transition';
+            });
+            clearSelection();
+            renderMap();
+        }
+
+        function getSeatClasses(seat, isSelected) {
+            let base = "seat rounded border-2 flex items-center justify-center text-xs font-bold ";
+            if (seat.occupied) return base + "bg-usal-red border-usal-red text-white occupied";
+            if (isSelected) return base + "bg-blue-50 border-usal-blue text-usal-blue selected";
+            return base + "bg-white border-green-500 text-green-600 hover:bg-green-50";
+        }
+
+        function renderMap() {
+            const container = document.getElementById('mapContainer');
+            const floorData = librariesData[currentLibraryIdx][`floor${currentFloor}`];
+            let html = '';
+
+            if (currentFloor === 1) {
+                const leftInd = floorData.individuals.slice(0, 10);
+                const rightInd = floorData.individuals.slice(10, 20);
+
+                html += `<div class="flex justify-between gap-8">`;
+                
+                // Izquierda
+                html += `<div class="flex flex-col gap-3 justify-between w-12 md:w-16">`;
+                leftInd.forEach((seat, i) => {
+                    const isSelected = selectedSeatId?.type === 'individual' && selectedSeatId?.index === i;
+                    html += `<div onclick="handleSeatClick('individual', ${i})" class="${getSeatClasses(seat, isSelected)} h-10 w-full" title="Puesto ${i+1}">
+                                <i class="fas fa-user text-[10px] ${seat.occupied ? 'text-white' : 'opacity-40'}"></i>
+                             </div>`;
+                });
+                html += `</div>`;
+
+                // Centro
+                html += `<div class="flex-1 flex flex-col gap-8">`;
+                    html += `<div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded border border-gray-200">`;
+                    floorData.group.forEach((seat, i) => {
+                        const isSelected = selectedSeatId?.type === 'grupal' && selectedSeatId?.index === i;
+                        html += `<div onclick="handleSeatClick('grupal', ${i})" class="${getSeatClasses(seat, isSelected)} h-24 flex-col gap-1" title="Grupo ${i+1}">
+                                    <i class="fas fa-users text-lg"></i><span>G-${i+1}</span>
+                                 </div>`;
+                    });
+                    html += `</div>`;
+                    
+                    html += `<div class="grid grid-cols-4 md:grid-cols-5 gap-4">`;
+                    floorData.tables.forEach((seat, i) => {
+                        const isSelected = selectedSeatId?.type === 'mesa' && selectedSeatId?.index === i;
+                        html += `<div onclick="handleSeatClick('mesa', ${i})" class="${getSeatClasses(seat, isSelected)} h-16 flex-col relative" title="Mesa ${i+1}">
+                                    <div class="table-4 absolute inset-0 opacity-20"><div class="table-seat bg-usal-gray"></div><div class="table-seat bg-usal-gray"></div><div class="table-seat bg-usal-gray"></div><div class="table-seat bg-usal-gray"></div></div>
+                                    <span class="z-10">M-${i+1}</span>
+                                 </div>`;
+                    });
+                    html += `</div>`;
+                html += `</div>`;
+
+                // Derecha
+                html += `<div class="flex flex-col gap-3 justify-between w-12 md:w-16">`;
+                rightInd.forEach((seat, i) => {
+                    const idx = i + 10;
+                    const isSelected = selectedSeatId?.type === 'individual' && selectedSeatId?.index === idx;
+                    html += `<div onclick="handleSeatClick('individual', ${idx})" class="${getSeatClasses(seat, isSelected)} h-10 w-full" title="Puesto ${idx+1}">
+                                <i class="fas fa-user text-[10px] ${seat.occupied ? 'text-white' : 'opacity-40'}"></i>
+                             </div>`;
+                });
+                html += `</div></div>`;
+
+            } else {
+                const leftInd = floorData.individuals.slice(0, 8);
+                const rightInd = floorData.individuals.slice(8, 16);
+
+                html += `<div class="flex justify-between gap-8 h-full min-h-[500px]">`;
+                
+                html += `<div class="flex flex-col gap-4 justify-around w-12 md:w-16">`;
+                leftInd.forEach((seat, i) => {
+                    const isSelected = selectedSeatId?.type === 'individual' && selectedSeatId?.index === i;
+                    html += `<div onclick="handleSeatClick('individual', ${i})" class="${getSeatClasses(seat, isSelected)} h-12 w-full" title="Puesto ${i+1}">
+                                <i class="fas fa-user text-[10px] ${seat.occupied ? 'text-white' : 'opacity-40'}"></i>
+                             </div>`;
+                });
+                html += `</div>`;
+
+                html += `<div class="flex-1 grid grid-cols-4 md:grid-cols-6 gap-5 content-center bg-gray-50 p-6 rounded border border-gray-200">`;
+                floorData.tables.forEach((seat, i) => {
+                    const isSelected = selectedSeatId?.type === 'mesa' && selectedSeatId?.index === i;
+                    html += `<div onclick="handleSeatClick('mesa', ${i})" class="${getSeatClasses(seat, isSelected)} h-20 flex-col relative" title="Mesa ${i+1}">
+                                <div class="table-4 absolute inset-0 opacity-20"><div class="table-seat bg-usal-gray"></div><div class="table-seat bg-usal-gray"></div><div class="table-seat bg-usal-gray"></div><div class="table-seat bg-usal-gray"></div></div>
+                                <span class="z-10">M-${i+1}</span>
+                             </div>`;
+                });
+                html += `</div>`;
+
+                html += `<div class="flex flex-col gap-4 justify-around w-12 md:w-16">`;
+                rightInd.forEach((seat, i) => {
+                    const idx = i + 8;
+                    const isSelected = selectedSeatId?.type === 'individual' && selectedSeatId?.index === idx;
+                    html += `<div onclick="handleSeatClick('individual', ${idx})" class="${getSeatClasses(seat, isSelected)} h-12 w-full" title="Puesto ${idx+1}">
+                                <i class="fas fa-user text-[10px] ${seat.occupied ? 'text-white' : 'opacity-40'}"></i>
+                             </div>`;
+                });
+                html += `</div></div>`;
+            }
+            container.innerHTML = html;
+        }
+
+        // --- PERFIL Y AI ---
+        function fillProfileForm() {
+            document.getElementById('userName').value = currentUser.name;
+            document.getElementById('headerUserName').innerText = currentUser.name;
+            document.getElementById('userDegree').value = currentUser.degree;
+            document.getElementById('userTopic').value = currentUser.topic;
+            document.getElementById('examDate').value = currentUser.examDate;
+            toggleAiPlanBtn();
+        }
+
+        document.getElementById('profileForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            currentUser.name = document.getElementById('userName').value;
+            currentUser.degree = document.getElementById('userDegree').value;
+            currentUser.topic = document.getElementById('userTopic').value;
+            currentUser.examDate = document.getElementById('examDate').value;
+            
+            document.getElementById('headerUserName').innerText = currentUser.name;
+            showToast('Datos académicos actualizados.');
+            toggleAiPlanBtn();
+            fetchAIRecommendation();
+            checkAutoReservation();
+        });
+
+        function toggleAiPlanBtn() {
+            const btn = document.getElementById('aiPlanBtn');
+            if (currentUser.examDate) btn.classList.remove('hidden');
+            else btn.classList.add('hidden');
+        }
+
+        function checkAutoReservation() {
+            if (!currentUser.examDate) return;
+            const examDate = new Date(currentUser.examDate);
+            const today = new Date();
+            const diffDays = Math.ceil((examDate - today) / (1000 * 60 * 60 * 24));
+
+            if (diffDays >= 0 && diffDays <= 7) {
+                const alreadyHasAuto = myReservations.some(r => r.auto === true);
+                if (!alreadyHasAuto) {
+                    const dateStr = examDate.toISOString().split('T')[0];
+                    myReservations.push({
+                        id: Date.now(),
+                        library: "Biblioteca Francisco de Vitoria",
+                        floor: 1,
+                        seatName: "Puesto Individual 1",
+                        date: dateStr,
+                        timeStart: "09:00",
+                        timeEnd: "14:00",
+                        auto: true
+                    });
+                    showToast(`Sistema: Reserva automática generada para su examen.`, 'info');
+                }
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-green-600' : (type === 'error' ? 'bg-usal-red' : 'bg-usal-blue');
+            const icon = type === 'success' ? 'fa-check-circle' : (type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle');
+            
+            toast.className = `${bgColor} text-white px-6 py-3 rounded shadow-lg flex items-center gap-3 transform transition-all duration-300 translate-x-full opacity-0 border-l-4 border-white/50`;
+            toast.innerHTML = `<i class="fas ${icon}"></i> <span class="font-bold text-sm tracking-wide">${message}</span>`;
+            
+            container.appendChild(toast);
+            setTimeout(() => toast.classList.remove('translate-x-full', 'opacity-0'), 10);
+            setTimeout(() => {
+                toast.classList.add('translate-x-full', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        async function callGeminiAPI(prompt, isJson = false) {
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const payload = { contents: [{ parts: [{ text: prompt }] }] };
+
+            if (isJson) {
+                payload.generationConfig = {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: { title: { type: "STRING" }, author: { type: "STRING" }, reason: { type: "STRING" }, icon: { type: "STRING" } }
+                    }
+                };
+            }
+
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+                    if (!response.ok) throw new Error("API Error");
+                    const data = await response.json();
+                    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                    return isJson ? JSON.parse(text) : text;
+                } catch (error) {
+                    await new Promise(res => setTimeout(res, Math.pow(2, i) * 1000));
+                }
+            }
+            throw new Error("Failed after retries");
+        }
+
+        async function fetchAIRecommendation() {
+            const container = document.getElementById('recommendationContent');
+            container.innerHTML = `<div class="flex justify-center py-4"><i class="fas fa-circle-notch animate-spin text-usal-blue text-2xl"></i></div>`;
+
+            const prompt = `Estudiante de ${currentUser.degree} estudiando "${currentUser.topic}". Recomienda libro/herramienta. Devuelve icono font-awesome válido sin prefijo. Da justificación breve y formal.`;
+            try {
+                const rec = await callGeminiAPI(prompt, true);
+                container.innerHTML = `
+                    <div class="flex items-start gap-3 mb-2">
+                        <div class="w-8 h-8 rounded bg-blue-50 text-usal-blue flex items-center justify-center mt-1 flex-shrink-0 border border-blue-100"><i class="fas fa-${rec.icon || 'book'}"></i></div>
+                        <div><p class="font-bold text-usal-gray text-xs leading-tight">${rec.title}</p><p class="text-[10px] text-gray-500 uppercase tracking-wide mt-1">${rec.author}</p></div>
+                    </div>
+                    <p class="text-[11px] text-usal-gray italic bg-white p-2 rounded border border-gray-100 leading-relaxed mt-2">"${rec.reason}"</p>
+                `;
+            } catch (e) {
+                container.innerHTML = `<p class="text-xs text-usal-red font-bold">Error de conexión con IA.</p>`;
+            }
+        }
+
+        async function generateStudyPlan() {
+            const modal = document.getElementById('aiPlanModal');
+            const content = document.getElementById('aiPlanContent');
+            modal.classList.remove('hidden');
+            content.innerHTML = `<div class="flex flex-col items-center py-16 text-usal-blue"><i class="fas fa-cogs animate-spin text-4xl mb-4"></i><p class="font-bold tracking-wide">Generando planificación estructurada...</p></div>`;
+
+            const todayDate = new Date().toLocaleDateString('es-ES');
+            const prompt = `Coach estudio formal. Estudiante ${currentUser.degree}, examen el ${currentUser.examDate} sobre "${currentUser.topic}". Hoy es ${todayDate}. Genera plan estudio corto en HTML puro (h3, ul, li, sin bloques de codigo). Usa un tono académico.`;
+
+            try {
+                const htmlPlan = await callGeminiAPI(prompt, false);
+                content.innerHTML = htmlPlan.replace(/`{3}html/gi, '').replace(/`{3}/g, '');
+            } catch (e) {
+                content.innerHTML = `<p class="text-usal-red font-bold">Error al generar la planificación.</p>`;
+            }
+        }
+    </script>
 </body>
 </html>
